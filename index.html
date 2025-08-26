@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gravity Ball – Rainbow Arena</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      font-family: 'Orbitron', sans-serif;
+      color: white;
+      text-align: center;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #000;
+    }
+    .controls {
+      margin: 16px 0;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 0 8px;
+      cursor: pointer;
+    }
+    input[type="file"] {
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="canvas" width="1080" height="1920"></canvas>
+
+<div class="controls">
+  <button id="startBtn">Start</button>
+  <button id="resetBtn">Reset</button>
+  <input type="file" id="audioFile" accept="audio/*">
+
+</div>
+
+<audio id="audio" preload="auto" style="display:none"></audio>
+
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const resetBtn = document.getElementById('resetBtn');
+const audioInput = document.getElementById('audioFile');
+
+const audio = document.getElementById('audio');
+
+
+let x, y, vx, vy, radius, trail;
+let gravity = 500;
+@@ -65,33 +61,23 @@
+let startTime = 0, lastFrameTime = 0;
+let lastCollisionTime = 0;
+
+const COLLISION_GRACE = 500; // ms
+const VIDEO_DURATION = 60000;
+const GROWTH_RATE = 200 / 45;
+
+
+const RING_WIDTH = 6;
+
+const BACKGROUND_COLORS = [
+  'rgb(255,200,200)',
+  'rgb(255,180,120)',
+  'rgb(255,255,180)',
+  'rgb(120,255,120)',
+  'rgb(180,220,255)'
+
+
+
+];
+const CONTRAST_COLORS = ['#222','#444','#666','#888','#aaa','#ccc','#eee'];
+
+
+
+let backgroundColor, ballFillColor;
+
+
+
+audioInput.addEventListener('change', () => {
+
+  const file = audioInput.files[0];
+  if (file) {
+    const url = URL.createObjectURL(file);
+@@ -100,101 +86,38 @@
+  }
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function resetBall() {
+  x = canvas.width / 2;
+
+
+
+
+
+
+
+  y = canvas.height / 2;
+  vx = (Math.random() - 0.5) * 600;
+
+
+
+  vy = (Math.random() - 0.5) * 600;
+
+
+  radius = 20;
+  trail = [];
+  backgroundColor = BACKGROUND_COLORS[Math.floor(Math.random() * BACKGROUND_COLORS.length)];
+
+
+
+  ballFillColor = CONTRAST_COLORS[Math.floor(Math.random() * CONTRAST_COLORS.length)];
+}
+
+
+function drawArena() {
+  const arenaRadius = Math.min(canvas.width, canvas.height) / 2 - 20;
+  ctx.fillStyle = backgroundColor;
+
+
+
+  ctx.beginPath();
+  ctx.arc(canvas.width / 2, canvas.height / 2, arenaRadius, 0, Math.PI * 2);
+
+
+
+  ctx.fill();
+  ctx.lineWidth = RING_WIDTH;
+  ctx.strokeStyle = '#000';
+  ctx.stroke();
+}
+
+function drawRainbowOutline(cx, cy, r) {
+
+
+
+
+
+
+  const segments = 60;
+  const step = (Math.PI * 2) / segments;
+
+
+  ctx.lineWidth = RING_WIDTH;
+  for (let i = 0; i < segments; i++) {
+
+
+    const a0 = i * step;
+    const a1 = (i + 1) * step;
+
+    ctx.strokeStyle = `hsl(${(i / segments) * 360}, 100%, 50%)`;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, a0, a1);
+
+
+
+
+
+
+
+    ctx.stroke();
+  }
+}
+@@ -204,200 +127,89 @@
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  drawArena();
+
+
+
+
+
+
+
+
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 64px Orbitron';
+  ctx.textAlign = 'center';
+
+
+  ctx.fillText('Watch What Will Happen', canvas.width / 2, canvas.height * 0.2);
+
+  const arenaRadius = Math.min(canvas.width, canvas.height) / 2 - RING_WIDTH;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Draw trail clones — rainbow fill, clamped
+  for (let i = 0; i < trail.length; i++) {
+    let t = trail[i];
+    let dx = t.x - canvas.width / 2;
+
+
+
+
+    let dy = t.y - canvas.height / 2;
+    const dist = Math.hypot(dx, dy);
+
+
+    const maxDist = arenaRadius - t.r;
+    if (dist > maxDist) {
+
+      dx = (dx / dist) * maxDist;
+      dy = (dy / dist) * maxDist;
+    }
+    const clampX = canvas.width / 2 + dx;
+    const clampY = canvas.height / 2 + dy;
+
+
+
+
+
+    ctx.beginPath();
+
+
+
+
+    ctx.arc(clampX, clampY, t.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${(i / trail.length) * 360}, 100%, 50%)`;
+    ctx.globalAlpha = 0.4;
+    ctx.fill();
+
+
+
+
+
+
+
+    ctx.globalAlpha = 1;
+    drawRainbowOutline(clampX, clampY, t.r);
+  }
+
+  // Draw main ball — original fill color, clamped
+  let dx = x - canvas.width / 2;
+
+  let dy = y - canvas.height / 2;
+  const dist = Math.hypot(dx, dy);
+  const maxDist = arenaRadius - radius;
+  if (dist > maxDist) {
+
+
+
+
+
+
+
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+  }
+  const clampBallX = canvas.width / 2 + dx;
+  const clampBallY = canvas.height / 2 + dy;
+  ctx.beginPath();
+  ctx.arc(clampBallX, clampBallY, radius, 0, Math.PI * 2);
+
+
+
+
+
+
+  ctx.fillStyle = ballFillColor;
+  ctx.fill();
+  drawRainbowOutline(clampBallX, clampBallY, radius);
+}
+
+function reflect(vx, vy, nx, ny) {
+  const dot = vx * nx + vy * ny;
+
+
+
+
+
+
+
+
+
+  return [(vx - 2 * dot * nx) * elasticity, (vy - 2 * dot * ny) * elasticity];
+}
+
+function handleCollisionSound() {
+  lastCollisionTime = performance.now();
+  if (audio.src && audio.paused) {
+
+
+
+
+    audio.currentTime = 0;
+    audio.play().catch(()=>{});
+
+
+
+
+
+
+
+
+
+
+
+
+  }
+}
+
+function animate(timestamp) {
+  if (!startTime) startTime = timestamp;
+  if (!lastFrameTime) lastFrameTime = timestamp;
+  const elapsed = (timestamp - startTime) / 1000;
+  const dt = (timestamp - lastFrameTime) / 1000;
+
+
+
+  lastFrameTime = timestamp;
+
+  radius = 20 + elapsed * GROWTH_RATE;
+
+
+
+
+
+  vy += gravity * dt;
+  x += vx * dt;
+  y += vy * dt;
+
+
+
+
+  // Clamp ball inside arena before trail
+  const arenaRadius = Math.min(canvas.width, canvas.height) / 2 - RING_WIDTH;
+
+  let dx = x - canvas.width / 2;
+  let dy = y - canvas.height / 2;
+
+
+  let dist = Math.hypot(dx, dy);
+  const maxDist = arenaRadius - radius;
+
+
+
+  if (dist > maxDist) {
+    dx = (dx / dist) * maxDist;
+
+    dy = (dy / dist) * maxDist;
+    x = canvas.width / 2 + dx;
+
+
+    y = canvas.height / 2 + dy;
+  }
+
+@@ -415,7 +227,6 @@
+
+  if (lastCollisionTime && performance.now() - lastCollisionTime > COLLISION_GRACE) {
+    if (!audio.paused) audio.pause();
+
+  }
+
+  drawFrame(elapsed);
+@@ -456,22 +267,23 @@
+      running = false;
+      startBtn.disabled = false;
+      if (!audio.paused) audio.pause();
+
+    }, VIDEO_DURATION);
+
+  }, 1000);
+});
+
+resetBtn.addEventListener('click', () => {
+  running = false;
+  startBtn.disabled = false;
+  if (!audio.paused) audio.pause();
+
+  resetBall();
+  drawFrame(0);
+});
+
+// kick things off with an initial draw
+resetBall();
+drawFrame(0);
+</script>
+</body>
+</html>
