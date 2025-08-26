@@ -53,23 +53,24 @@ const resetBtn = document.getElementById('resetBtn');
 const audioInput = document.getElementById('audioFile');
 const audio = document.getElementById('audio');
 
-let x = canvas.width / 2;
-let y = canvas.height / 2;
-let vx = 300;
-let vy = 200;
-let radius = 20;
+let x, y, vx, vy, radius, trail;
+
+
+
+
 let gravity = 500;
 let elasticity = 1.019;
 let running = false;
 let recorder, recordedChunks = [];
-let startTime = 0;
-let lastFrameTime = 0;
-let trail = [];
+let startTime = 0, lastFrameTime = 0;
 
-// Updated: collision grace period
+
+
+
 let lastCollisionTime = 0;
-const COLLISION_GRACE = 420; // ms
 
+
+const COLLISION_GRACE = 500; // ms
 const VIDEO_DURATION = 60000;
 const GROWTH_RATE = 200 / 45;
 const RING_WIDTH = 6;
@@ -81,13 +82,14 @@ const BACKGROUND_COLORS = [
   'rgb(120,255,120)',
   'rgb(180,220,255)'
 ];
+const CONTRAST_COLORS = ['#222','#444','#666','#888','#aaa','#ccc','#eee'];
 
-const CONTRAST_COLORS = [
-  '#222', '#444', '#666', '#888', '#aaa', '#ccc', '#eee'
-];
+let backgroundColor, ballFillColor;
 
-let backgroundColor = BACKGROUND_COLORS[Math.floor(Math.random() * BACKGROUND_COLORS.length)];
-let ballFillColor = CONTRAST_COLORS[Math.floor(Math.random() * CONTRAST_COLORS.length)];
+
+
+
+
 
 audioInput.addEventListener('change', () => {
   const file = audioInput.files[0];
@@ -120,7 +122,7 @@ function drawArena() {
   ctx.stroke();
 }
 
-function drawRainbowOutline(x, y, r) {
+function drawRainbowOutline(cx, cy, r) {
   const segments = 60;
   const step = (Math.PI * 2) / segments;
   ctx.lineWidth = RING_WIDTH;
@@ -129,7 +131,7 @@ function drawRainbowOutline(x, y, r) {
     const a1 = (i + 1) * step;
     ctx.strokeStyle = `hsl(${(i / segments) * 360}, 100%, 50%)`;
     ctx.beginPath();
-    ctx.arc(x, y, r, a0, a1);
+    ctx.arc(cx, cy, r, a0, a1);
     ctx.stroke();
   }
 }
@@ -145,21 +147,47 @@ function drawFrame(elapsed) {
   ctx.textAlign = 'center';
   ctx.fillText('Watch What Will Happen', canvas.width / 2, canvas.height * 0.2);
 
-  for (const t of trail) {
+  const arenaRadius = Math.min(canvas.width, canvas.height) / 2 - RING_WIDTH;
+
+  // Draw trail clones — rainbow fill, clamped
+  for (let i = 0; i < trail.length; i++) {
+    let t = trail[i];
+    let dx = t.x - canvas.width / 2;
+    let dy = t.y - canvas.height / 2;
+    const dist = Math.hypot(dx, dy);
+    const maxDist = arenaRadius - t.r;
+    if (dist > maxDist) {
+      dx = (dx / dist) * maxDist;
+      dy = (dy / dist) * maxDist;
+    }
+    const clampX = canvas.width / 2 + dx;
+    const clampY = canvas.height / 2 + dy;
+
     ctx.beginPath();
-    ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
-    ctx.fillStyle = ballFillColor;
-    ctx.globalAlpha = 0.2;
+    ctx.arc(clampX, clampY, t.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsl(${(i / trail.length) * 360}, 100%, 50%)`;
+    ctx.globalAlpha = 0.4;
     ctx.fill();
     ctx.globalAlpha = 1;
-    drawRainbowOutline(t.x, t.y, t.r);
+    drawRainbowOutline(clampX, clampY, t.r);
   }
 
+  // Draw main ball — original fill color, clamped
+  let dx = x - canvas.width / 2;
+  let dy = y - canvas.height / 2;
+  const dist = Math.hypot(dx, dy);
+  const maxDist = arenaRadius - radius;
+  if (dist > maxDist) {
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+  }
+  const clampBallX = canvas.width / 2 + dx;
+  const clampBallY = canvas.height / 2 + dy;
   ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.arc(clampBallX, clampBallY, radius, 0, Math.PI * 2);
   ctx.fillStyle = ballFillColor;
   ctx.fill();
-  drawRainbowOutline(x, y, radius);
+  drawRainbowOutline(clampBallX, clampBallY, radius);
 }
 
 function reflect(vx, vy, nx, ny) {
@@ -188,19 +216,31 @@ function animate(timestamp) {
   x += vx * dt;
   y += vy * dt;
 
+  // Clamp ball inside arena before trail
+  const arenaRadius = Math.min(canvas.width, canvas.height) / 2 - RING_WIDTH;
+  let dx = x - canvas.width / 2;
+  let dy = y - canvas.height / 2;
+  let dist = Math.hypot(dx, dy);
+  const maxDist = arenaRadius - radius;
+  if (dist > maxDist) {
+    dx = (dx / dist) * maxDist;
+    dy = (dy / dist) * maxDist;
+    x = canvas.width / 2 + dx;
+    y = canvas.height / 2 + dy;
+  }
+
   trail.push({ x, y, r: radius });
-  if (trail.length > 25) trail.shift(); // reduced from 30
+  if (trail.length > 25) trail.shift();
 
-  const dx = x - canvas.width / 2;
-  const dy = y - canvas.height / 2;
-  const dist = Math.hypot(dx, dy);
-  const maxDist = Math.min(canvas.width, canvas.height) / 2 - radius;
 
+
+  // Collision detection
+  dist = Math.hypot(x - canvas.width / 2, y - canvas.height / 2);
   if (dist >= maxDist) {
-    const nx = dx / dist;
-    const ny = dy / dist;
-    x = canvas.width / 2 + nx * maxDist;
-    y = canvas.height / 2 + ny * maxDist;
+    const nx = (x - canvas.width / 2) / dist;
+    const ny = (y - canvas.height / 2) / dist;
+
+
     [vx, vy] = reflect(vx, vy, nx, ny);
     handleCollisionSound();
   }
@@ -239,7 +279,7 @@ startBtn.addEventListener('click', () => {
       URL.revokeObjectURL(url);
     };
 
-       recorder.start();
+    recorder.start();
     requestAnimationFrame(animate);
 
     setTimeout(() => {
@@ -248,6 +288,7 @@ startBtn.addEventListener('click', () => {
       startBtn.disabled = false;
       if (!audio.paused) audio.pause();
     }, VIDEO_DURATION);
+
   }, 1000);
 });
 
